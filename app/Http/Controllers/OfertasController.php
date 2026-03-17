@@ -7,22 +7,10 @@ use Illuminate\Http\Request;
 
 class OfertasController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $buscar = $request->buscar;
-
-        $productos = Producto::query()
-            ->when($buscar, function ($query, $buscar) {
-                $query->where('nombre', 'like', "%{$buscar}%")
-                      ->orWhere('descripcion', 'like', "%{$buscar}%")
-                      ->orWhere('categoria', 'like', "%{$buscar}%")
-                      ->orWhere('tienda', 'like', "%{$buscar}%");
-            })
-            ->orderBy('created_at', 'desc')
-            ->paginate(10)
-            ->withQueryString();
-
-        return view('ofertas.index', compact('productos', 'buscar'));
+        $productos = Producto::all();
+        return view('ofertas.index', compact('productos'));
     }
 
     public function create()
@@ -32,82 +20,41 @@ class OfertasController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $datos = $request->validate([
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
             'categoria' => 'nullable|string|max:255',
             'precio_original' => 'required|numeric|min:0',
-            'precio_descuento' => 'nullable|numeric|min:0|lte:precio_original',
+            'precio_descuento' => 'required|numeric|min:0',
             'tienda' => 'nullable|string|max:255',
-            'link' => 'nullable|url|max:255',
+            'link' => 'nullable|string|max:255',
             'imagen' => 'nullable|string|max:255',
         ]);
 
-        Producto::create([
-            'nombre' => $request->nombre,
-            'descripcion' => $request->descripcion,
-            'categoria' => $request->categoria,
-            'precio_original' => $request->precio_original,
-            'precio_descuento' => $request->precio_descuento,
-            'tienda' => $request->tienda,
-            'link' => $request->link,
-            'imagen' => $request->imagen,
-        ]);
+        if ($datos['precio_original'] > 0) {
+            $datos['porcentaje_descuento'] = round(
+                (($datos['precio_original'] - $datos['precio_descuento']) / $datos['precio_original']) * 100
+            );
+        } else {
+            $datos['porcentaje_descuento'] = 0;
+        }
+
+        Producto::create($datos);
 
         return redirect()->route('ofertas.index')
-            ->with('success', 'Oferta creada correctamente.');
+            ->with('success', 'Producto agregado correctamente');
     }
 
-    public function show($id)
+    public function show(Producto $oferta)
     {
-        $producto = Producto::findOrFail($id);
-
-        return view('ofertas.show', compact('producto'));
+        return view('ofertas.show', ['producto' => $oferta]);
     }
 
-    public function edit($id)
+    public function destroy(Producto $oferta)
     {
-        $producto = Producto::findOrFail($id);
-
-        return view('ofertas.edit', compact('producto'));
-    }
-
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
-            'categoria' => 'nullable|string|max:255',
-            'precio_original' => 'required|numeric|min:0',
-            'precio_descuento' => 'nullable|numeric|min:0|lte:precio_original',
-            'tienda' => 'nullable|string|max:255',
-            'link' => 'nullable|url|max:255',
-            'imagen' => 'nullable|string|max:255',
-        ]);
-
-        $producto = Producto::findOrFail($id);
-
-        $producto->update([
-            'nombre' => $request->nombre,
-            'descripcion' => $request->descripcion,
-            'categoria' => $request->categoria,
-            'precio_original' => $request->precio_original,
-            'precio_descuento' => $request->precio_descuento,
-            'tienda' => $request->tienda,
-            'link' => $request->link,
-            'imagen' => $request->imagen,
-        ]);
+        $oferta->delete();
 
         return redirect()->route('ofertas.index')
-            ->with('success', 'Oferta actualizada correctamente.');
-    }
-
-    public function destroy($id)
-    {
-        $producto = Producto::findOrFail($id);
-        $producto->delete();
-
-        return redirect()->route('ofertas.index')
-            ->with('success', 'Oferta eliminada correctamente.');
+            ->with('success', 'Producto eliminado correctamente');
     }
 }
